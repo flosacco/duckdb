@@ -1,0 +1,823 @@
+{
+  "config": {
+    "size_a": 1000,
+    "size_b": 10000,
+    "size_c": 100000,
+    "keys_c": 1000,
+    "runs": 5,
+    "binary": "/Users/federicolosacco/workspace/query-optimizer/duckdb/build/release/duckdb"
+  },
+  "summary": {
+    "standard_mean_ms": 34.728,
+    "standard_stdev_ms": 1.432,
+    "optimized_mean_ms": 34.385,
+    "optimized_stdev_ms": 0.52,
+    "speedup_ratio": 1.01
+  },
+  "runs": {
+    "standard": [
+      {
+        "run": 1,
+        "wall_time_ms": 35.558,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.42e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 6.0624999999999996e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.5e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.208e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.292e-06
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 5.875e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.079999999999999e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.583999999999999e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.00016345999999999998
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.000151749
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.00023550099999999997
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.625e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.09e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00018129299999999996
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.541e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.604200000000002e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 5.537800000000003e-05
+          }
+        ]
+      },
+      {
+        "run": 2,
+        "wall_time_ms": 36.713,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 5e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 5.4791e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.5e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.042e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.5e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 5.829e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.74e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.0042e-05
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.00020208299999999998
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.00015325099999999997
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.000249417
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.25e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.91e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00015287599999999998
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.212000000000001e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.129099999999997e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.546200000000002e-05
+          }
+        ]
+      },
+      {
+        "run": 3,
+        "wall_time_ms": 33.448,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.75e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 4.4959e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.92e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.125e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.542e-06
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 7.0333e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.74e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.166e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.00016958200000000002
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.000177418
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.000246417
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 3.7499999999999997e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 8.75e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00015641300000000005
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.2510000000000016e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.3540999999999994e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 3.8459000000000006e-05
+          }
+        ]
+      },
+      {
+        "run": 4,
+        "wall_time_ms": 34.58,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.58e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 5.7e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 8.33e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.542e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.042e-06
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 6.0082e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.74e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.958e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.00018783200000000003
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.00015870799999999997
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.00028229199999999996
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 3.917e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.041e-06
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.000163121
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.457000000000003e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.5287999999999996e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.525100000000001e-05
+          }
+        ]
+      },
+      {
+        "run": 5,
+        "wall_time_ms": 33.343,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.042e-06
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 5.0125e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.66e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.125e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.67e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 5.5166e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.834e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.000164166
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 0.000140331
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.000241333
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.791e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.25e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00015537900000000003
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.2890000000000015e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.245899999999996e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.799800000000002e-05
+          }
+        ]
+      }
+    ],
+    "optimized": [
+      {
+        "run": 1,
+        "wall_time_ms": 34.286,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.92e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 4.5708000000000004e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.09e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.08e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 7.041000000000001e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 8.3e-08
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 9.17e-07
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 8.8499e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.42e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 2.4333e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.7499999999999996e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.4169999999999995e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 7.4917e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.00013221
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.83e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00016708600000000005
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.755e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.762500000000001e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.778600000000002e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 6.375e-06
+          }
+        ]
+      },
+      {
+        "run": 2,
+        "wall_time_ms": 34.658,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.16e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 4.5499999999999995e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.5e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.16e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 6.876e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.2e-08
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.083e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 7.2791e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.25e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 2.6292e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.1599999999999997e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.792e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 7.3834e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.000136125
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.42e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.000153246
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.2080000000000005e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.2580000000000015e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.0001000000000005e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 3e-06
+          }
+        ]
+      },
+      {
+        "run": 3,
+        "wall_time_ms": 33.637,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.75e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 5.1917e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.08e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.08e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 9.875e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.2e-08
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 8.75e-07
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 8.0832e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.58e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 2.5375e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.1599999999999997e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.4579999999999996e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 7.3126e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.00014725000000000003
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.92e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00016141400000000002
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.3760000000000012e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.3709e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 5.116700000000001e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 5.708e-06
+          }
+        ]
+      },
+      {
+        "run": 4,
+        "wall_time_ms": 35.041,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 4.17e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 5.8376e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.08e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.67e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 7.873e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 8.3e-08
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.292e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 9.1082e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.08e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 2.6918000000000002e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.75e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.834e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 8.4835e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.00013641600000000002
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.209e-06
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00016342
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.7889999999999996e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.588000000000001e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.787200000000001e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 7.290999999999999e-06
+          }
+        ]
+      },
+      {
+        "run": 5,
+        "wall_time_ms": 34.301,
+        "operators": [
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.75e-07
+          },
+          {
+            "name": "ORDER_BY",
+            "timing_s": 5.6375e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.5e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 8.34e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 7.5e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 8.4e-08
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 1.125e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 7.466599999999999e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 2.3457000000000003e-05
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 6.66e-07
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 7.457e-06
+          },
+          {
+            "name": "HASH_JOIN",
+            "timing_s": 9.2332e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 0.00013370800000000001
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 9.16e-07
+          },
+          {
+            "name": "PERFECT_HASH_GROUP_BY",
+            "timing_s": 0.00015937599999999997
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 3.207000000000003e-06
+          },
+          {
+            "name": "PROJECTION",
+            "timing_s": 5.549999999999999e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 4.5583e-05
+          },
+          {
+            "name": "TABLE_SCAN",
+            "timing_s": 5.167e-06
+          }
+        ]
+      }
+    ]
+  }
+}
