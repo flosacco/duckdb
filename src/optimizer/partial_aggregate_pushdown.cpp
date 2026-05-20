@@ -17,7 +17,7 @@ PartialAggregatePushdown::PartialAggregatePushdown(Optimizer &optimizer_p) : opt
 }
 
 struct PartialAggregatePushdownHeuristics {
-	static constexpr idx_t MIN_DIMENSION_GROUPS = 4;
+	static constexpr idx_t MIN_DIMENSION_GROUPS = 1;
 	static constexpr idx_t MIN_AGGREGATE_TO_DIMENSION_RATIO = 4;
 	static constexpr idx_t MAX_JOIN_SELECTIVITY_INV = 8;
 	static constexpr idx_t MAX_EXTRA_LOWER_GROUPS = 1;
@@ -62,7 +62,7 @@ static bool IsSupportedAggregate(const BoundAggregateExpression &expr) {
 	if (expr.IsDistinct() || expr.filter || expr.order_bys) {
 		return false;
 	}
-	if (expr.children.size() != 1) {
+	if (expr.children.size() > 1) {
 		return false;
 	}
 	if (!expr.function.HasGetStateTypeCallback()) {
@@ -125,6 +125,10 @@ static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePush
 		auto &aggregate = expr->Cast<BoundAggregateExpression>();
 		if (!IsSupportedAggregate(aggregate)) {
 			return false;
+		}
+		if (aggregate.children.empty()) {
+			// COUNT(*) — no input column, does not constrain the aggregate side
+			continue;
 		}
 		idx_t side;
 		if (!GetExpressionSide(*aggregate.children[0], info, side)) {
@@ -229,9 +233,6 @@ static bool AnalyzePushdown(LogicalAggregate &aggr, LogicalComparisonJoin &join,
 	if (ContainsAggregateInput(*join.children[info.aggregate_side])) {
 		return false;
 	}
-	if (info.side_bindings[info.dimension_side].size() != 1) {
-		return false;
-	}
 	if (!PassesCardinalityHeuristic(join, info)) {
 		return false;
 	}
@@ -256,9 +257,9 @@ static void BuildLowerGroupMap(LogicalAggregate &aggr, LogicalComparisonJoin &jo
 	for (auto &condition : join.conditions) {
 		unique_ptr<Expression> *aggregate_expr;
 		unique_ptr<Expression> *dimension_expr;
-		GetJoinSideExpressions(condition, info, aggregate_expr, dimension_expr);
+		D_ASSERT(GetJoinSideExpressions(condition, info, aggregate_expr, dimension_expr));
 		ColumnBinding binding;
-		GetColumnBinding(**aggregate_expr, binding);
+		D_ASSERT(GetColumnBinding(**aggregate_expr, binding));
 		AddLowerGroup(info, binding, (*aggregate_expr)->GetReturnType());
 	}
 	info.join_key_count = info.lower_group_bindings.size();
@@ -436,7 +437,9 @@ static unique_ptr<LogicalProjection> CreateFinalProjection(Optimizer &optimizer,
 
 void PartialAggregatePushdown::VisitOperator(unique_ptr<LogicalOperator> &op) {
 	LogicalOperatorVisitor::VisitOperator(op);
-	TryPushdownAggregate(op);
+	if (TryPushdownAggregate(op)) {
+		modified = true;
+	}
 }
 
 unique_ptr<Expression> PartialAggregatePushdown::VisitReplace(BoundColumnRefExpression &expr,
@@ -449,9 +452,6 @@ unique_ptr<Expression> PartialAggregatePushdown::VisitReplace(BoundColumnRefExpr
 }
 
 static bool IsAcyclic(LogicalOperator &op) {
-	unordered_set<TableIndex> vertices;
-	LogicalJoin::GetTableReferences(op, vertices);
-
 	vector<std::pair<TableIndex, TableIndex>> edges;
 	struct Helper {
 		static void Collect(const LogicalOperator &op, vector<std::pair<TableIndex, TableIndex>> &edges) {

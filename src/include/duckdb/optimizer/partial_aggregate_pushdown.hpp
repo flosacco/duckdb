@@ -14,7 +14,8 @@
 namespace duckdb {
 class Optimizer;
 
-//! The PartialAggregatePushdown optimizer pushes SUM aggregates below joins when this can reduce join work
+//! The PartialAggregatePushdown optimizer pushes distributive aggregates (SUM, COUNT, etc.) below joins
+//! when pre-aggregating the fact side can reduce join cardinality
 class PartialAggregatePushdown : public LogicalOperatorVisitor {
 public:
 	explicit PartialAggregatePushdown(Optimizer &optimizer);
