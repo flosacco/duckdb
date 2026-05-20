@@ -448,10 +448,77 @@ unique_ptr<Expression> PartialAggregatePushdown::VisitReplace(BoundColumnRefExpr
 	return nullptr;
 }
 
+static bool IsAcyclic(LogicalOperator &op) {
+	unordered_set<TableIndex> vertices;
+	LogicalJoin::GetTableReferences(op, vertices);
+
+	vector<std::pair<TableIndex, TableIndex>> edges;
+	struct Helper {
+		static void Collect(const LogicalOperator &op, vector<std::pair<TableIndex, TableIndex>> &edges) {
+			if (op.type == LogicalOperatorType::LOGICAL_COMPARISON_JOIN) {
+				auto &join = op.Cast<LogicalComparisonJoin>();
+				for (auto &cond : join.conditions) {
+					unordered_set<TableIndex> left_bindings;
+					LogicalJoin::GetExpressionBindings(cond.GetLHS(), left_bindings);
+					unordered_set<TableIndex> right_bindings;
+					LogicalJoin::GetExpressionBindings(cond.GetRHS(), right_bindings);
+					for (auto u : left_bindings) {
+						for (auto v : right_bindings) {
+							if (u != v) {
+								edges.push_back({u, v});
+							}
+						}
+					}
+				}
+			}
+			for (auto &child : op.children) {
+				if (child) {
+					Collect(*child, edges);
+				}
+			}
+		}
+	};
+	Helper::Collect(op, edges);
+
+	struct TableIndexDSU {
+		unordered_map<idx_t, idx_t> parent;
+		idx_t Find(idx_t i) {
+			if (parent.find(i) == parent.end()) {
+				parent[i] = i;
+				return i;
+			}
+			if (parent[i] == i) {
+				return i;
+			}
+			return parent[i] = Find(parent[i]);
+		}
+		bool Union(idx_t x, idx_t y) {
+			auto root_x = Find(x);
+			auto root_y = Find(y);
+			if (root_x == root_y) {
+				return false;
+			}
+			parent[root_x] = root_y;
+			return true;
+		}
+	} dsu;
+
+	for (auto &edge : edges) {
+		if (!dsu.Union(edge.first.index, edge.second.index)) {
+			return false; // cycle detected!
+		}
+	}
+	return true;
+}
+
 bool PartialAggregatePushdown::TryPushdownAggregate(unique_ptr<LogicalOperator> &op) {
 	LogicalAggregate *aggr;
 	LogicalComparisonJoin *join;
 	if (!GetPushdownOperators(*op, aggr, join)) {
+		return false;
+	}
+
+	if (!IsAcyclic(*op->children[0])) {
 		return false;
 	}
 

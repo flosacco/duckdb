@@ -254,10 +254,17 @@ void Optimizer::RunBuiltInOptimizers() {
 
 	// Pre-aggregate SUM/COUNT below joins when GROUP BY is on dimension columns
 	// and the fact side dominates cardinality — reduces probe-side work.
-	RunOptimizer(OptimizerType::PARTIAL_AGGREGATE_PUSHDOWN, [&]() {
-		PartialAggregatePushdown partial_aggregate_pushdown(*this);
-		partial_aggregate_pushdown.VisitOperator(plan);
-	});
+	for (idx_t i = 0; i < 16; i++) {
+		bool changed = false;
+		RunOptimizer(OptimizerType::PARTIAL_AGGREGATE_PUSHDOWN, [&]() {
+			PartialAggregatePushdown partial_aggregate_pushdown(*this);
+			partial_aggregate_pushdown.VisitOperator(plan);
+			changed = partial_aggregate_pushdown.modified;
+		});
+		if (!changed) {
+			break;
+		}
+	}
 
 	RunOptimizer(OptimizerType::JOIN_ELIMINATION, [&]() {
 		JoinElimination join_elimination;

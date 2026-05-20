@@ -20,6 +20,7 @@ public:
 	explicit PartialAggregatePushdown(Optimizer &optimizer);
 
 	void VisitOperator(unique_ptr<LogicalOperator> &op) override;
+	bool modified = false;
 
 private:
 	bool TryPushdownAggregate(unique_ptr<LogicalOperator> &op);
