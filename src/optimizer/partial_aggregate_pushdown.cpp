@@ -233,6 +233,9 @@ static bool AnalyzePushdown(LogicalAggregate &aggr, LogicalComparisonJoin &join,
 	if (ContainsAggregateInput(*join.children[info.aggregate_side])) {
 		return false;
 	}
+	if (info.side_bindings[info.dimension_side].size() != 1) {
+		return false;
+	}
 	if (!PassesCardinalityHeuristic(join, info)) {
 		return false;
 	}
