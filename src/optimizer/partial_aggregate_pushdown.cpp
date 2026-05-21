@@ -260,9 +260,13 @@ static void BuildLowerGroupMap(LogicalAggregate &aggr, LogicalComparisonJoin &jo
 	for (auto &condition : join.conditions) {
 		unique_ptr<Expression> *aggregate_expr;
 		unique_ptr<Expression> *dimension_expr;
-		D_ASSERT(GetJoinSideExpressions(condition, info, aggregate_expr, dimension_expr));
+		if (!GetJoinSideExpressions(condition, info, aggregate_expr, dimension_expr)) {
+			continue;
+		}
 		ColumnBinding binding;
-		D_ASSERT(GetColumnBinding(**aggregate_expr, binding));
+		if (!GetColumnBinding(**aggregate_expr, binding)) {
+			continue;
+		}
 		AddLowerGroup(info, binding, (*aggregate_expr)->GetReturnType());
 	}
 	info.join_key_count = info.lower_group_bindings.size();

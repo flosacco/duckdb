@@ -1,0 +1,254 @@
+# name: test/sql/optimizer/plan/test_partial_aggregate_pushdown.test
+# description: Test partial aggregate pushdown optimizer — correctness and regressions
+# group: [plan]
+
+# Star-schema setup:
+#   dim  (dk, name)  — 3 rows (dimension / lookup table)
+#   fact (dk, amt)   — 12 rows (fact table, 4 rows per dim key)
+#
+# SUM per key:   x=100, y=80, z=16
+# COUNT per key: x=4,   y=4,  z=4
+# MIN per key:   x=10,  y=5,  z=1
+# MAX per key:   x=40,  y=35, z=7
+# AVG per key:   x=25,  y=20, z=4
+
+statement ok
+CREATE TABLE dim (dk INTEGER, name VARCHAR);
+
+statement ok
+INSERT INTO dim VALUES (1, 'x'), (2, 'y'), (3, 'z');
+
+statement ok
+CREATE TABLE fact (dk INTEGER, amt INTEGER);
+
+statement ok
+INSERT INTO fact VALUES
+    (1, 10), (1, 20), (1, 30), (1, 40),
+    (2,  5), (2, 15), (2, 25), (2, 35),
+    (3,  1), (3,  3), (3,  5), (3,  7);
+
+# ── SUM ──────────────────────────────────────────────────────
+query TI
+SELECT d.name, SUM(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	100
+y	80
+z	16
+
+# ── COUNT ────────────────────────────────────────────────────
+query TI
+SELECT d.name, COUNT(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	4
+y	4
+z	4
+
+# ── COUNT(*) combined with SUM (COUNT(*) has no input column) ─
+query TII
+SELECT d.name, SUM(f.amt), COUNT(*)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	100	4
+y	80	4
+z	16	4
+
+# ── MIN ──────────────────────────────────────────────────────
+query TI
+SELECT d.name, MIN(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	10
+y	5
+z	1
+
+# ── MAX ──────────────────────────────────────────────────────
+query TI
+SELECT d.name, MAX(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	40
+y	35
+z	7
+
+# ── AVG (decomposes to SUM/COUNT via aggregate_function_rewriter) ─
+query TR
+SELECT d.name, AVG(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	25.0
+y	20.0
+z	4.0
+
+# ── Multiple aggregates in one query ─────────────────────────
+query TIII
+SELECT d.name, SUM(f.amt), COUNT(f.amt), MIN(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	100	4	10
+y	80	4	5
+z	16	4	1
+
+# ── Group by columns from both sides ─────────────────────────
+query ITI
+SELECT f.dk, d.name, SUM(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY f.dk, d.name ORDER BY f.dk;
+----
+1	x	100
+2	y	80
+3	z	16
+
+# ── Regression: same results with optimizer disabled ─────────
+
+statement ok
+SET disabled_optimizers = 'partial_aggregate_pushdown';
+
+query TI
+SELECT d.name, SUM(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	100
+y	80
+z	16
+
+query TI
+SELECT d.name, COUNT(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	4
+y	4
+z	4
+
+query TII
+SELECT d.name, SUM(f.amt), COUNT(*)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	100	4
+y	80	4
+z	16	4
+
+query TI
+SELECT d.name, MIN(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	10
+y	5
+z	1
+
+query TI
+SELECT d.name, MAX(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	40
+y	35
+z	7
+
+statement ok
+SET disabled_optimizers = '';
+
+# ── Non-inner join: optimizer skips LEFT JOIN ─────────────────
+# All dim keys have matching fact rows so result equals the INNER JOIN.
+query TI
+SELECT d.name, SUM(f.amt)
+FROM dim d LEFT JOIN fact f ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	100
+y	80
+z	16
+
+# ── Dimension-side groups only (no fact-side groups) ─────────
+# GROUP BY f.dk: all groups are on the fact side, zero on dim side.
+# HasWideDimensionGroups returns false → optimizer does not fire.
+query II
+SELECT f.dk, SUM(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY f.dk ORDER BY f.dk;
+----
+1	100
+2	80
+3	16
+
+# ── Cyclic join graph: two join conditions between same pair ──
+# IsAcyclic detects a cycle (both edges connect fact↔dim) → optimizer skips.
+query TI
+SELECT d.name, SUM(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk AND f.amt = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+z	3
+
+# ── Distinct aggregate: must not push ────────────────────────
+query TI
+SELECT d.name, COUNT(DISTINCT f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	4
+y	4
+z	4
+
+# ── Fact table with NULL join keys: NULL rows excluded ────────
+statement ok
+INSERT INTO fact VALUES (NULL, 999);
+
+query TI
+SELECT d.name, SUM(f.amt)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	100
+y	80
+z	16
+
+statement ok
+DELETE FROM fact WHERE dk IS NULL;
+
+# ── Cascading pushdown: optimizer fires multiple times ────────
+# 3-table star: dim2 → bridge → fact2
+# First pass pushes SUM(fact2.val) below the fact2-join;
+# second pass pushes the result below the bridge-join.
+
+statement ok
+CREATE TABLE bridge (ak INTEGER, bk INTEGER);
+
+statement ok
+INSERT INTO bridge VALUES (1, 10), (1, 11), (2, 20), (2, 21), (3, 30), (3, 31);
+
+statement ok
+CREATE TABLE dim2 (ak INTEGER, label VARCHAR);
+
+statement ok
+INSERT INTO dim2 VALUES (1, 'alpha'), (2, 'beta'), (3, 'gamma');
+
+statement ok
+CREATE TABLE fact2 (bk INTEGER, val INTEGER);
+
+statement ok
+INSERT INTO fact2 SELECT bk, generate_series AS val
+FROM bridge, generate_series(1, 10);
+
+query TI
+SELECT d.label, SUM(f.val)
+FROM dim2 d
+    JOIN bridge b ON b.ak = d.ak
+    JOIN fact2 f ON f.bk = b.bk
+GROUP BY d.label ORDER BY d.label;
+----
+alpha	110
+beta	110
+gamma	110
