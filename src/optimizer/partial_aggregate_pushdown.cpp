@@ -126,6 +126,7 @@ static bool GetExpressionSide(const Expression &expr, const PartialAggregatePush
 
 static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePushdownInfo &info) {
 	optional_idx aggregate_side;
+	bool has_count_star = false;
 	for (auto &expr : aggr.expressions) {
 		if (expr->GetExpressionClass() != ExpressionClass::BOUND_AGGREGATE) {
 			return false;
@@ -136,6 +137,7 @@ static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePush
 		}
 		if (aggregate.children.empty()) {
 			// COUNT(*) — no input column, does not constrain the aggregate side
+			has_count_star = true;
 			continue;
 		}
 		idx_t side;
@@ -149,7 +151,28 @@ static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePush
 		}
 	}
 	if (!aggregate_side.IsValid()) {
-		return false;
+		// Pure COUNT(*) query — no column-referencing aggregate to identify the fact side.
+		// Infer aggregate_side from GROUP BY: if every GROUP BY column lives on the same
+		// side that side is the dimension side, and we push the pre-count to the other.
+		if (!has_count_star) {
+			return false;
+		}
+		optional_idx inferred_dimension_side;
+		for (auto &group : aggr.groups) {
+			idx_t side;
+			if (!GetExpressionSide(*group, info, side)) {
+				return false;
+			}
+			if (!inferred_dimension_side.IsValid()) {
+				inferred_dimension_side = side;
+			} else if (inferred_dimension_side.GetIndex() != side) {
+				return false; // GROUP BY spans both sides — cannot infer fact side
+			}
+		}
+		if (!inferred_dimension_side.IsValid()) {
+			return false;
+		}
+		aggregate_side = 1 - inferred_dimension_side.GetIndex();
 	}
 	info.aggregate_side = aggregate_side.GetIndex();
 	info.dimension_side = 1 - info.aggregate_side;

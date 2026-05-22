@@ -192,6 +192,19 @@ GROUP BY d.name ORDER BY d.name;
 ----
 z	3
 
+# ── Pure COUNT(*): aggregate side inferred from GROUP BY ─────
+# All aggregates are COUNT(*) — no input column to identify the fact side.
+# Optimizer infers aggregate_side from GROUP BY: d.name is on dim side →
+# fact is the aggregate side → COUNT(*) pushed below the join.
+query TI
+SELECT d.name, COUNT(*)
+FROM fact f JOIN dim d ON f.dk = d.dk
+GROUP BY d.name ORDER BY d.name;
+----
+x	4
+y	4
+z	4
+
 # ── Distinct aggregate: must not push ────────────────────────
 query TI
 SELECT d.name, COUNT(DISTINCT f.amt)
