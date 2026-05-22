@@ -179,19 +179,26 @@ static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePush
 	return true;
 }
 
-static bool PassesCardinalityHeuristic(const LogicalComparisonJoin &join, const PartialAggregatePushdownInfo &info) {
+static bool PassesCardinalityHeuristic(LogicalComparisonJoin &join, const PartialAggregatePushdownInfo &info,
+                                       ClientContext &context) {
 	auto &aggregate_child = *join.children[info.aggregate_side];
 	auto &dimension_child = *join.children[info.dimension_side];
-	if (!aggregate_child.has_estimated_cardinality || !dimension_child.has_estimated_cardinality) {
-		return true;
-	}
-	if (aggregate_child.estimated_cardinality <
-	    PartialAggregatePushdownHeuristics::MIN_AGGREGATE_TO_DIMENSION_RATIO * dimension_child.estimated_cardinality) {
+	// Fall back to EstimateCardinality when the join-order optimizer has not yet
+	// populated the estimated_cardinality fields. EstimateCardinality walks the
+	// subtree recursively (LogicalGet reads from table statistics / function
+	// cardinality callbacks) and caches the result, so subsequent calls are cheap.
+	const idx_t agg_card = aggregate_child.has_estimated_cardinality
+	                           ? aggregate_child.estimated_cardinality
+	                           : aggregate_child.EstimateCardinality(context);
+	const idx_t dim_card = dimension_child.has_estimated_cardinality
+	                           ? dimension_child.estimated_cardinality
+	                           : dimension_child.EstimateCardinality(context);
+	if (agg_card < PartialAggregatePushdownHeuristics::MIN_AGGREGATE_TO_DIMENSION_RATIO * dim_card) {
 		return false;
 	}
-	if (join.has_estimated_cardinality &&
-	    join.estimated_cardinality * PartialAggregatePushdownHeuristics::MAX_JOIN_SELECTIVITY_INV <
-	        aggregate_child.estimated_cardinality) {
+	const idx_t join_card = join.has_estimated_cardinality ? join.estimated_cardinality
+	                                                       : join.EstimateCardinality(context);
+	if (join_card * PartialAggregatePushdownHeuristics::MAX_JOIN_SELECTIVITY_INV < agg_card) {
 		return false;
 	}
 	return true;
@@ -255,7 +262,8 @@ static bool HasWideDimensionGroups(const LogicalAggregate &aggr, const PartialAg
 	return dimension_group_count >= PartialAggregatePushdownHeuristics::MIN_DIMENSION_GROUPS;
 }
 
-static bool AnalyzePushdown(LogicalAggregate &aggr, LogicalComparisonJoin &join, PartialAggregatePushdownInfo &info) {
+static bool AnalyzePushdown(LogicalAggregate &aggr, LogicalComparisonJoin &join, PartialAggregatePushdownInfo &info,
+                            ClientContext &context) {
 	LogicalJoin::GetTableReferences(*join.children[0], info.side_bindings[0]);
 	LogicalJoin::GetTableReferences(*join.children[1], info.side_bindings[1]);
 	if (!FindAggregateSide(aggr, info)) {
@@ -267,7 +275,7 @@ static bool AnalyzePushdown(LogicalAggregate &aggr, LogicalComparisonJoin &join,
 	if (info.side_bindings[info.dimension_side].size() != 1) {
 		return false;
 	}
-	if (!PassesCardinalityHeuristic(join, info)) {
+	if (!PassesCardinalityHeuristic(join, info, context)) {
 		return false;
 	}
 	if (!ValidateJoinConditions(join, info)) {
@@ -561,7 +569,7 @@ bool PartialAggregatePushdown::TryPushdownAggregate(unique_ptr<LogicalOperator> 
 	}
 
 	PartialAggregatePushdownInfo info;
-	if (!AnalyzePushdown(*aggr, *join, info)) {
+	if (!AnalyzePushdown(*aggr, *join, info, optimizer.context)) {
 		return false;
 	}
 	info.lower_group_index = optimizer.binder.GenerateTableIndex();
