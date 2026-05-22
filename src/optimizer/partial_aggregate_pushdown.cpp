@@ -65,6 +65,14 @@ static bool IsSupportedAggregate(const BoundAggregateExpression &expr) {
 	if (expr.children.size() > 1) {
 		return false;
 	}
+	// Gate on HasGetStateTypeCallback (not HasStateCombineCallback) intentionally:
+	// ExportAggregateFunction::Bind produces AGGREGATE_STATE (struct-typed) only when
+	// get_state_type is set; otherwise it falls back to LEGACY_AGGREGATE_STATE (opaque blob).
+	// The upper combine aggregate (CombineAggrFun) only accepts AGGREGATE_STATE — there is
+	// no AggregateFunction overload for LEGACY_AGGREGATE_STATE. Aggregates lacking
+	// get_state_type (e.g. skew, approx_count_distinct) are therefore correctly excluded:
+	// they have a combine callback but cannot participate in the EXPORT_STATE →
+	// COMBINE_AGGR → FINALIZE pipeline this pass builds.
 	if (!expr.function.HasGetStateTypeCallback()) {
 		return false;
 	}
