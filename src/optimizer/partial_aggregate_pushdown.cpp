@@ -33,6 +33,13 @@ struct PartialAggregatePushdownInfo {
 	vector<ColumnBinding> lower_group_bindings;
 	column_binding_map_t<ColumnBinding> lower_group_map;
 	column_binding_map_t<LogicalType> lower_group_types;
+	// Per-aggregate classification: true = fact-side (exported to lower aggregate + combined
+	// in upper), false = dimension-side (kept in upper aggregate unchanged).
+	// Dimension-side aggregates are only allowed for MIN and MAX — the only aggregates that
+	// are correct after pushdown regardless of how many fact rows share a join key (the
+	// lower aggregate reduces the fact side to one row per join key, so COUNT/SUM over
+	// dimension columns would observe fewer rows than the original join).
+	vector<bool> is_fact_side_aggregate;
 };
 
 static bool IsSubset(const unordered_set<TableIndex> &bindings, const unordered_set<TableIndex> &side_bindings) {
@@ -56,6 +63,22 @@ static bool GetColumnBinding(const Expression &expr, ColumnBinding &binding) {
 	}
 	binding = expr.Cast<BoundColumnRefExpression>().binding;
 	return true;
+}
+
+// Returns true for aggregates that are correct when left in the upper aggregate after
+// pushdown — i.e., they operate over the post-join result where the fact side has been
+// reduced to one row per join key. MIN and MAX are correct because:
+//   - Under unique dimension join keys: each dim attribute appears once per group → same result.
+//   - Under duplicate dimension join keys: the join still returns all dim rows (the dim side
+//     is unmodified); MIN/MAX over those rows = MIN/MAX over the original N-row join result.
+// COUNT and SUM are explicitly excluded: they produce wrong results when fewer fact rows are
+// visible in the upper aggregate (post-pushdown count per group = 1, not the original N).
+static bool IsSupportedDimSideAggregate(const BoundAggregateExpression &expr) {
+	if (expr.IsDistinct() || expr.filter || expr.order_bys || expr.children.size() != 1) {
+		return false;
+	}
+	const auto &name = expr.function.GetName();
+	return name == "min" || name == "max";
 }
 
 static bool IsSupportedAggregate(const BoundAggregateExpression &expr) {
@@ -125,18 +148,22 @@ static bool GetExpressionSide(const Expression &expr, const PartialAggregatePush
 }
 
 static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePushdownInfo &info) {
-	optional_idx aggregate_side;
+	const idx_t n = aggr.expressions.size();
+	info.is_fact_side_aggregate.assign(n, false);
+
+	optional_idx aggregate_side; // fact side: determined by first non-COUNT(*) aggregate
 	bool has_count_star = false;
-	for (auto &expr : aggr.expressions) {
+
+	// First pass: classify each aggregate as fact-side or potential dim-side.
+	for (idx_t i = 0; i < n; i++) {
+		auto &expr = aggr.expressions[i];
 		if (expr->GetExpressionClass() != ExpressionClass::BOUND_AGGREGATE) {
 			return false;
 		}
 		auto &aggregate = expr->Cast<BoundAggregateExpression>();
-		if (!IsSupportedAggregate(aggregate)) {
-			return false;
-		}
 		if (aggregate.children.empty()) {
-			// COUNT(*) — no input column, does not constrain the aggregate side
+			// COUNT(*) — no input column, does not constrain the aggregate side.
+			// Will be marked fact-side after aggregate_side is determined.
 			has_count_star = true;
 			continue;
 		}
@@ -145,15 +172,26 @@ static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePush
 			return false;
 		}
 		if (!aggregate_side.IsValid()) {
+			// First non-COUNT(*) aggregate determines the fact side.
 			aggregate_side = side;
-		} else if (aggregate_side.GetIndex() != side) {
-			return false;
+			info.is_fact_side_aggregate[i] = true;
+		} else if (aggregate_side.GetIndex() == side) {
+			// Same side as already determined fact side — pushable.
+			info.is_fact_side_aggregate[i] = true;
+		} else {
+			// Opposite side: allowed only for MIN / MAX.
+			// These are safe because the lower aggregate does not change how many
+			// dim rows appear per group in the upper join result — MIN/MAX over
+			// one or N identical dim values yields the same result either way.
+			if (!IsSupportedAggregate(aggregate) || !IsSupportedDimSideAggregate(aggregate)) {
+				return false;
+			}
+			info.is_fact_side_aggregate[i] = false; // dim-side: stays in upper unchanged
 		}
 	}
+
 	if (!aggregate_side.IsValid()) {
-		// Pure COUNT(*) query — no column-referencing aggregate to identify the fact side.
-		// Infer aggregate_side from GROUP BY: if every GROUP BY column lives on the same
-		// side that side is the dimension side, and we push the pre-count to the other.
+		// Pure COUNT(*) — infer fact side from GROUP BY columns.
 		if (!has_count_star) {
 			return false;
 		}
@@ -166,7 +204,7 @@ static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePush
 			if (!inferred_dimension_side.IsValid()) {
 				inferred_dimension_side = side;
 			} else if (inferred_dimension_side.GetIndex() != side) {
-				return false; // GROUP BY spans both sides — cannot infer fact side
+				return false;
 			}
 		}
 		if (!inferred_dimension_side.IsValid()) {
@@ -174,6 +212,14 @@ static bool FindAggregateSide(const LogicalAggregate &aggr, PartialAggregatePush
 		}
 		aggregate_side = 1 - inferred_dimension_side.GetIndex();
 	}
+
+	// Mark all COUNT(*)s as fact-side (pushed to lower aggregate).
+	for (idx_t i = 0; i < n; i++) {
+		if (aggr.expressions[i]->Cast<BoundAggregateExpression>().children.empty()) {
+			info.is_fact_side_aggregate[i] = true;
+		}
+	}
+
 	info.aggregate_side = aggregate_side.GetIndex();
 	info.dimension_side = 1 - info.aggregate_side;
 	return true;
@@ -327,14 +373,25 @@ static bool PassesLowerGroupHeuristic(const PartialAggregatePushdownInfo &info) 
 	       info.join_key_count + PartialAggregatePushdownHeuristics::MAX_EXTRA_LOWER_GROUPS;
 }
 
-static bool BindPushdownAggregates(ClientContext &context, LogicalAggregate &aggr, TableIndex lower_aggregate_index,
+static bool BindPushdownAggregates(ClientContext &context, LogicalAggregate &aggr,
+                                   const PartialAggregatePushdownInfo &info,
                                    vector<unique_ptr<Expression>> &lower_aggregates,
                                    vector<unique_ptr<Expression>> &upper_aggregates) {
 	auto combine_function = CombineAggrFun::GetFunction();
 	FunctionBinder function_binder(context);
+	idx_t lower_idx = 0; // index into lower_aggregates (fact-side only)
 
 	for (idx_t i = 0; i < aggr.expressions.size(); i++) {
 		auto aggregate_copy = unique_ptr_cast<Expression, BoundAggregateExpression>(aggr.expressions[i]->Copy());
+
+		if (!info.is_fact_side_aggregate[i]) {
+			// Dimension-side aggregate (MIN/MAX on dim column): keep in upper aggregate
+			// unchanged. No lower aggregate is created for this slot.
+			upper_aggregates.push_back(std::move(aggregate_copy));
+			continue;
+		}
+
+		// Fact-side aggregate: export state to lower, combine in upper.
 		auto lower_aggregate = ExportAggregateFunction::Bind(std::move(aggregate_copy));
 		auto lower_type = lower_aggregate->GetReturnType();
 		if (lower_type.id() != LogicalTypeId::AGGREGATE_STATE) {
@@ -342,7 +399,7 @@ static bool BindPushdownAggregates(ClientContext &context, LogicalAggregate &agg
 		}
 
 		vector<unique_ptr<Expression>> arguments;
-		auto lower_binding = ColumnBinding(lower_aggregate_index, ProjectionIndex(i));
+		auto lower_binding = ColumnBinding(info.lower_aggregate_index, ProjectionIndex(lower_idx++));
 		arguments.push_back(make_uniq<BoundColumnRefExpression>(lower_type, lower_binding));
 		auto upper_aggregate = function_binder.BindAggregateFunction(combine_function, std::move(arguments));
 		if (upper_aggregate->GetReturnType().id() != LogicalTypeId::AGGREGATE_STATE) {
@@ -447,6 +504,7 @@ static unique_ptr<LogicalAggregate> CreateUpperAggregate(LogicalAggregate &aggr,
 
 static unique_ptr<LogicalProjection> CreateFinalProjection(Optimizer &optimizer, LogicalAggregate &aggr,
                                                            unique_ptr<LogicalAggregate> upper_aggr,
+                                                           const PartialAggregatePushdownInfo &info,
                                                            column_binding_map_t<ColumnBinding> &replacement_map) {
 	const auto proj_index = optimizer.binder.GenerateTableIndex();
 	const auto group_count = aggr.groups.size();
@@ -465,6 +523,18 @@ static unique_ptr<LogicalProjection> CreateFinalProjection(Optimizer &optimizer,
 		replacement_map[aggregate_binding] = ColumnBinding(proj_index, ProjectionIndex(group_count + aggr_idx));
 		auto aggregate_type = upper_aggr->types[group_count + aggr_idx];
 		auto aggregate_ref = make_uniq<BoundColumnRefExpression>(aggregate_type, aggregate_binding);
+
+		if (!info.is_fact_side_aggregate[aggr_idx]) {
+			// Dimension-side aggregate (MIN/MAX): upper aggregate already holds the
+			// final value — no finalize() wrapper needed.
+			if (aggregate_type != aggr.expressions[aggr_idx]->GetReturnType()) {
+				return nullptr;
+			}
+			projection_expressions.push_back(std::move(aggregate_ref));
+			continue;
+		}
+
+		// Fact-side aggregate: upper aggregate holds AGGREGATE_STATE — wrap with finalize().
 		auto final_expression = optimizer.BindScalarFunction("finalize", std::move(aggregate_ref));
 		if (final_expression->GetReturnType() != aggr.expressions[aggr_idx]->GetReturnType()) {
 			return nullptr;
@@ -581,15 +651,14 @@ bool PartialAggregatePushdown::TryPushdownAggregate(unique_ptr<LogicalOperator> 
 
 	vector<unique_ptr<Expression>> lower_aggregates;
 	vector<unique_ptr<Expression>> upper_aggregates;
-	if (!BindPushdownAggregates(optimizer.context, *aggr, info.lower_aggregate_index, lower_aggregates,
-	                            upper_aggregates)) {
+	if (!BindPushdownAggregates(optimizer.context, *aggr, info, lower_aggregates, upper_aggregates)) {
 		return false;
 	}
 
 	auto lower_aggr = CreateLowerAggregate(*aggr, *join, info, std::move(lower_aggregates));
 	auto new_join = CreateJoin(*join, info, std::move(lower_aggr));
 	auto upper_aggr = CreateUpperAggregate(*aggr, std::move(new_join), info, std::move(upper_aggregates));
-	auto final_projection = CreateFinalProjection(optimizer, *aggr, std::move(upper_aggr), replacement_map);
+	auto final_projection = CreateFinalProjection(optimizer, *aggr, std::move(upper_aggr), info, replacement_map);
 	if (!final_projection) {
 		return false;
 	}
