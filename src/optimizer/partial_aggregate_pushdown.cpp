@@ -318,9 +318,12 @@ static bool AnalyzePushdown(LogicalAggregate &aggr, LogicalComparisonJoin &join,
 	if (ContainsAggregateInput(*join.children[info.aggregate_side])) {
 		return false;
 	}
-	if (info.side_bindings[info.dimension_side].size() != 1) {
-		return false;
-	}
+	// No single-table guard on dimension_side: snowflake schemas where the dimension side
+	// spans multiple joined tables (e.g. fact → bridge → dim) are handled correctly.
+	// All downstream helpers work on side_bindings sets, not individual tables, so a
+	// multi-table dimension subtree is preserved unchanged in CreateJoin and the join
+	// key for BuildLowerGroupMap always comes from the outermost join condition
+	// (aggregate_side column), regardless of how many dimension tables are involved.
 	if (!PassesCardinalityHeuristic(join, info, context)) {
 		return false;
 	}

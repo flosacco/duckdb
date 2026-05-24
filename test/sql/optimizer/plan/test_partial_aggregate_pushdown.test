@@ -294,3 +294,69 @@ GROUP BY d.label ORDER BY d.label;
 alpha	110
 beta	110
 gamma	110
+
+# ── Snowflake schema: multi-table dimension side ─────────────
+# category (ck, cat_name) — top of hierarchy
+# product  (pk, ck)       — middle (FK → category)
+# sales    (pk, amount)   — fact (FK → product)
+#
+# Expected:
+#   electronics: phone(10+20) + laptop(30+40) = 100
+#   clothing:    shirt(5+15)  + pants(25+35)  = 80
+
+statement ok
+CREATE TABLE category (ck INTEGER, cat_name VARCHAR);
+
+statement ok
+INSERT INTO category VALUES (1, 'electronics'), (2, 'clothing');
+
+statement ok
+CREATE TABLE product (pk INTEGER, ck INTEGER);
+
+statement ok
+INSERT INTO product VALUES (1, 1), (2, 1), (3, 2), (4, 2);
+
+statement ok
+CREATE TABLE sales (pk INTEGER, amount INTEGER);
+
+statement ok
+INSERT INTO sales VALUES (1, 10), (1, 20), (2, 30), (2, 40),
+                         (3,  5), (3, 15), (4, 25), (4, 35);
+
+query TI
+SELECT c.cat_name, SUM(s.amount)
+FROM sales s
+JOIN product p ON s.pk = p.pk
+JOIN category c ON p.ck = c.ck
+GROUP BY c.cat_name ORDER BY c.cat_name;
+----
+clothing	80
+electronics	100
+
+# Regression: same results with optimizer disabled
+statement ok
+SET disabled_optimizers = 'partial_aggregate_pushdown';
+
+query TI
+SELECT c.cat_name, SUM(s.amount)
+FROM sales s
+JOIN product p ON s.pk = p.pk
+JOIN category c ON p.ck = c.ck
+GROUP BY c.cat_name ORDER BY c.cat_name;
+----
+clothing	80
+electronics	100
+
+statement ok
+SET disabled_optimizers = '';
+
+# COUNT(*) over snowflake schema
+query TI
+SELECT c.cat_name, COUNT(*)
+FROM sales s
+JOIN product p ON s.pk = p.pk
+JOIN category c ON p.ck = c.ck
+GROUP BY c.cat_name ORDER BY c.cat_name;
+----
+clothing	4
+electronics	4
